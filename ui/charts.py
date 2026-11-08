@@ -46,6 +46,10 @@ def place_heatmap(place_df):
     values = shares.values
     annotate = len(teams) <= 16
     text = [[f"{cell:.0%}" for cell in row] for row in values] if annotate else None
+    zmin = float(values.min())
+    zmax = float(values.max())
+    if zmax <= zmin:
+        zmax = zmin + 1e-6
     figure = go.Figure(go.Heatmap(
         z=values,
         x=places,
@@ -53,8 +57,8 @@ def place_heatmap(place_df):
         text=text,
         texttemplate="%{text}" if annotate else None,
         colorscale="Teal",
-        zmin=0,
-        zmax=1,
+        zmin=zmin,
+        zmax=zmax,
         hovertemplate="место %{x}<br>%{y}<br>%{z:.1%}<extra></extra>",
         colorbar=dict(tickformat=".0%"),
     ))
