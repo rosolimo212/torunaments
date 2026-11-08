@@ -272,7 +272,7 @@ def render_tournament_tab(config, catalog, multi):
     if multi:
         places = result["places"]
         st.subheader("Тепловая карта мест", help=HELP["heatmap"])
-        st.plotly_chart(place_heatmap(places), width="content")
+        st.plotly_chart(place_heatmap(places), use_container_width=False)
         justice = justice_index(places)
         st.metric("Индекс справедливости", f"{justice:.1%}", help=HELP["justice"])
         for favorite in favorite_win_probability(places):
@@ -288,7 +288,7 @@ def render_tournament_tab(config, catalog, multi):
     st.dataframe(
         protocol,
         hide_index=True,
-        width="stretch",
+        use_container_width=True,
         height=min(520, 48 + 36 * max(len(protocol), 1)),
         column_config={
             "Счёт 1": st.column_config.NumberColumn(format="%d", help="Голы первой команды в этой строке."),
@@ -392,7 +392,7 @@ def _go_button(label, key, help_text):
     with action:
         pressed = st.button(label, type="primary", key=key)
     with hint:
-        with st.popover("?", type="tertiary"):
+        with st.popover("?"):
             st.write(help_text)
     return pressed
 

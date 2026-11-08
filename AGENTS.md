@@ -2,7 +2,9 @@
 
 Локальное приложение на Streamlit показывает модель из `tourn.py` широкой аудитории. Язык интерфейса — русский. Статья по итогам: [«Финты справедливости»](https://habr.com/ru/articles/913006/). Ноутбуки (`research.ipynb`) по-прежнему зовут библиотеку напрямую и не должны менять поведение из-за веба.
 
-Запуск: `streamlit run ui/streamlit_app.py` из корня. Тесты: `pytest`. Postgres не нужен, деплой не делаем.
+Запуск: `streamlit run ui/streamlit_app.py` из корня. Тесты: `pytest`. Postgres не нужен.
+
+Прод — Python 3.8.10 на `45.132.18.2`, каталог `/root/python/torunaments`, порт `127.0.0.1:8505`, сайт `tournaments.kotelok.space`. Python на сервере не обновлять. Верхние границы в `requirements.txt` держат numpy 1.24, pandas 2.0, streamlit 1.40 и `packaging<25`. Интерфейс рассчитан на Streamlit 1.40: `use_container_width`, без аргумента `width` и без `type` у `st.popover`. `seaborn` импортируется только внутри `get_multiverse_stat`; в вебе его нет. Файл `opta-power-rankings.csv` в git не входит, на сервер его копируют отдельно.
 
 ## Не менять без явной просьбы
 

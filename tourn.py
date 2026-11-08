@@ -5,9 +5,6 @@ import pandas as pd
 import random
 import math
 
-import seaborn as sns
-import matplotlib.pyplot as plt
-
 def get_data_from_team_dict(teams_dct, itm):
     """
     converter  temas dict to other datatypres
@@ -738,6 +735,10 @@ def get_multiverse_stat(multiverse_stat, place, normalize=1):
     """
     print multiverse heat map
     """
+    # График нужен только ноутбуку. Веб эту функцию не вызывает,
+    # поэтому seaborn не стоит в зависимостях приложения.
+    import seaborn as sns
+    import matplotlib.pyplot as plt
 
     normalized_value = np.max(multiverse_stat['iteration_id'] + 1)
 
