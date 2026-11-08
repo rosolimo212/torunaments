@@ -96,7 +96,7 @@ def make_random_schedule(teams_dct, size):
 
     return pairs
 
-def simulate_matches_by_schedule(teams_dct, schedule, total=(0,1), sigma=(2.5, 2.6), last_match_id=0):
+def simulate_matches_by_schedule(teams_dct, schedule, total=(0,1), sigma=(2.5, 2.6), last_match_id=0, play_match=None):
     """ 
     make a simulation mathes in current schedule and prepair game log  
     params:
@@ -120,17 +120,24 @@ def simulate_matches_by_schedule(teams_dct, schedule, total=(0,1), sigma=(2.5, 2
     sigma_low = int(round(float(sigma[0]) * 10))
     sigma_high = int(round(float(sigma[1]) * 10))
     for pair in schedule:
-        match_total = np.random.randint(total_low, total_high + 1)
-        match_sigma = np.random.randint(sigma_low, sigma_high + 1) / 10
-        res = get_match(
-            teams_dct[pair[0]]['start_rating'],
-            teams_dct[pair[1]]['start_rating'],
-            match_total, match_sigma
-                )
+        if len(pair) < 2:
+            continue
+        if play_match is None:
+            match_total = np.random.randint(total_low, total_high + 1)
+            match_sigma = np.random.randint(sigma_low, sigma_high + 1) / 10
+            res = get_match(
+                teams_dct[pair[0]]['start_rating'],
+                teams_dct[pair[1]]['start_rating'],
+                match_total, match_sigma
+                    )
+        else:
+            res = play_match(pair[0], pair[1])
         id0.append(pair[0])
         id1.append(pair[1])
-        sc0.append(res[0])
-        sc1.append(res[1])
+        sc0.append(int(res[0]))
+        sc1.append(int(res[1]))
+    if len(id0) == 0:
+        return pd.DataFrame(columns=['id0', 'id1', 'score0', 'score1', 'match_id', 'team0_name', 'team1_name', 'overtime_case', 'penalty_case'])
     log_df = pd.DataFrame([id0, id1,sc0, sc1]).T
     log_df.columns = ['id0', 'id1', 'score0', 'score1']
 
@@ -375,7 +382,7 @@ def _pair_swiss_round(swiss_dct, team_df, game_number, sorted_type, n_attempts, 
     return None, None
 
 
-def _play_swiss_tournament(teams_dct, n_rounds, n_attempts, is_verbose, total, sigma, allow_rematch):
+def _play_swiss_tournament(teams_dct, n_rounds, n_attempts, is_verbose, total, sigma, allow_rematch, play_match=None):
     if len(teams_dct) % 2 != 0:
         raise ValueError('swiss tournament needs an even number of teams')
 
@@ -405,7 +412,9 @@ def _play_swiss_tournament(teams_dct, n_rounds, n_attempts, is_verbose, total, s
                 return None
             swiss_dct = trial
 
-        round_log_df = simulate_matches_by_schedule(teams_dct, round_schedule, last_match_id=len(log_df), total=total, sigma=sigma)
+        round_log_df = simulate_matches_by_schedule(
+            teams_dct, round_schedule, last_match_id=len(log_df), total=total, sigma=sigma, play_match=play_match,
+        )
         round_log_df['round'] = round
         log_df = pd.concat([log_df, round_log_df])
         team_df = team_table(log_df, teams_dct)
@@ -413,7 +422,19 @@ def _play_swiss_tournament(teams_dct, n_rounds, n_attempts, is_verbose, total, s
     return log_df, swiss_dct
 
 
-def simulate_swiss_tourn(teams_dct, n_rounds=9, n_attempts=50, is_verbose=False, total=(0,1), sigma=(2.5, 2.6)):
+def _begin_attempt(play_match):
+    begin = getattr(play_match, "begin_attempt", None)
+    if begin is not None:
+        begin()
+
+
+def _abort_attempt(play_match):
+    abort = getattr(play_match, "abort_attempt", None)
+    if abort is not None:
+        abort()
+
+
+def simulate_swiss_tourn(teams_dct, n_rounds=9, n_attempts=50, is_verbose=False, total=(0,1), sigma=(2.5, 2.6), play_match=None):
     """ 
     The whole tournament.
     A round that cannot be paired is thrown away and the tournament is generated again.
@@ -422,18 +443,22 @@ def simulate_swiss_tourn(teams_dct, n_rounds=9, n_attempts=50, is_verbose=False,
     """
     restarts = min(n_attempts, 10)
     for tournament_try in range(restarts):
+        _begin_attempt(play_match)
         played = _play_swiss_tournament(
-            teams_dct, n_rounds, n_attempts, is_verbose, total, sigma, allow_rematch=False,
+            teams_dct, n_rounds, n_attempts, is_verbose, total, sigma, allow_rematch=False, play_match=play_match,
         )
         if played is not None:
             return played
+        _abort_attempt(play_match)
         if is_verbose == True:
             print(f"Swiss draw failed. Regenerating tournament, try {tournament_try + 1} of {restarts}")
 
+    _begin_attempt(play_match)
     played = _play_swiss_tournament(
-        teams_dct, n_rounds, n_attempts, is_verbose, total, sigma, allow_rematch=True,
+        teams_dct, n_rounds, n_attempts, is_verbose, total, sigma, allow_rematch=True, play_match=play_match,
     )
     if played is None:
+        _abort_attempt(play_match)
         raise RuntimeError('swiss tournament could not be paired')
     return played
     
@@ -498,7 +523,7 @@ def make_playoff_round_schedule(teams_dct, seed_mode):
         return pairs
     
 
-def simulate_playoff_tourn(teams_dct, seed_mode, total=(0,1), sigma=(2.5, 2.6)):
+def simulate_playoff_tourn(teams_dct, seed_mode, total=(0,1), sigma=(2.5, 2.6), play_match=None):
     playoff_dct = teams_dct.copy()
 
     playoff_df = get_data_from_team_dict(teams_dct, 'full data frame')
@@ -508,7 +533,9 @@ def simulate_playoff_tourn(teams_dct, seed_mode, total=(0,1), sigma=(2.5, 2.6)):
     while len(playoff_df[playoff_df['is_active'] == 1]) > 1:
         schedule = make_playoff_round_schedule(playoff_dct, seed_mode)
         
-        round_log_df = simulate_matches_by_schedule(playoff_dct, schedule, last_match_id=len(log_df), total=total, sigma=sigma)
+        round_log_df = simulate_matches_by_schedule(
+            playoff_dct, schedule, last_match_id=len(log_df), total=total, sigma=sigma, play_match=play_match,
+        )
         round_log_df['round'] = round
 
         log_df = pd.concat([log_df, round_log_df])
@@ -536,7 +563,8 @@ def simulatate_combine_tournament(
     second_step_tourn_mode='playoff',
     second_step_number_param=0,
     second_step_string_param='', 
-    is_verbose=False
+    is_verbose=False,
+    play_match=None,
                             ):
     team_list = get_data_from_team_dict(teams_dct, 'teams list')
     np.random.shuffle(team_list)
@@ -555,14 +583,14 @@ def simulatate_combine_tournament(
         
         if first_step_tourn_mode == 'round_robin':
             group_schedule = get_round_robin_schedule(group_dct, num_cycles=first_step_number_param)
-            group_log_df = simulate_matches_by_schedule(group_dct, group_schedule, total=total, sigma=sigma, last_match_id=len(log_df))
+            group_log_df = simulate_matches_by_schedule(group_dct, group_schedule, total=total, sigma=sigma, last_match_id=len(log_df), play_match=play_match)
 
         elif first_step_tourn_mode == 'random':
             group_schedule = make_random_schedule(group_dct, size=first_step_number_param)
-            group_log_df = simulate_matches_by_schedule(group_dct, group_schedule, last_match_id=len(log_df), total=total, sigma=sigma)
+            group_log_df = simulate_matches_by_schedule(group_dct, group_schedule, last_match_id=len(log_df), total=total, sigma=sigma, play_match=play_match)
 
         elif first_step_tourn_mode == 'swiss':
-            group_log_df, swiss_dct  = simulate_swiss_tourn(group_dct, n_rounds=first_step_number_param, is_verbose=False, total=total, sigma=sigma)
+            group_log_df, swiss_dct  = simulate_swiss_tourn(group_dct, n_rounds=first_step_number_param, is_verbose=False, total=total, sigma=sigma, play_match=play_match)
 
         group_log_df['stage'] = 'first_stage'
         group_results_df = make_res_table(group_log_df, group_dct)
@@ -578,7 +606,7 @@ def simulatate_combine_tournament(
     teams_df = teams_df[teams_df.index.isin(next_stage_teams_list)]
     final_dct = teams_df.to_dict('index')
 
-    final_log_df = simulate_playoff_tourn(final_dct, seed_mode=second_step_string_param, total=total, sigma=sigma)
+    final_log_df = simulate_playoff_tourn(final_dct, seed_mode=second_step_string_param, total=total, sigma=sigma, play_match=play_match)
     final_log_df['stage'] = 'second_stage'
     final_results_df = make_res_table(final_log_df, teams_dct)
     final_results_df['place'] = final_results_df['playoff_place']

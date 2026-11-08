@@ -1,0 +1,72 @@
+app:
+  title: Модель матчей и турниров
+
+data:
+  ratings: opta-power-rankings.csv
+
+match:
+  sigma: 2.5
+  total_low: 0
+  total_high: 1
+  home_mu: 0.4
+  squad_half_drop: 241
+  fatigue_tau: 150
+  fatigue_noise: 5
+  default_simulations: 1000
+
+weather:
+  states:
+    - id: clear
+      label: Ясно
+      sigma_bonus: 0.0
+    - id: light_wind
+      label: Слабый ветер
+      sigma_bonus: 0.0
+    - id: strong_wind
+      label: Сильный ветер
+      sigma_bonus: 0.05
+    - id: light_rain
+      label: Слабый дождь
+      sigma_bonus: 0.05
+    - id: heavy_rain
+      label: Сильный дождь
+      sigma_bonus: 0.15
+  tournament_probabilities:
+    clear: 0.70
+    light_wind: 0.10
+    strong_wind: 0.08
+    light_rain: 0.08
+    heavy_rain: 0.04
+
+presets:
+  - id: top8
+    label: Топ-8 мира
+    kind: top
+    n: 8
+  - id: top32
+    label: Топ-32 мира
+    kind: top
+    n: 32
+  - id: epl
+    label: Английская Премьер-лига
+    kind: league
+    league: English Premier League
+  - id: laliga
+    label: Ла Лига
+    kind: league
+    league: Spanish La Liga
+  - id: bundesliga
+    label: Бундеслига
+    kind: league
+    league: German Bundesliga
+  - id: serie_a
+    label: Серия A
+    kind: league
+    league: Italian Serie A
+  - id: ligue_1
+    label: Лига 1
+    kind: league
+    league: French Ligue 1
+  - id: custom
+    label: Свой набор
+    kind: custom
