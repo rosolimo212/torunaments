@@ -21,26 +21,102 @@ COLUMN_NAMES = {
 }
 
 
-def match_rows(log, show_weather, show_squad):
+MATCH_COLUMNS = [
+    "Команда 1",
+    "Счёт 1",
+    "Счёт 2",
+    "Команда 2",
+    "Тур",
+    "Готовность 1",
+    "Готовность 2",
+    "Погода",
+    "Серия пенальти",
+]
+
+
+def match_rows(log, mode):
+    tours = _tour_numbers(log)
     rows = []
-    for row in log.itertuples(index=False):
-        line = f"{row.team0_name} {int(row.score0)}:{int(row.score1)} {row.team1_name}"
-        details = []
-        stage = getattr(row, "stage", None)
-        if stage == "first_stage":
-            details.append("группа")
-        elif stage == "second_stage":
-            details.append("плей-офф")
+    for index, row in enumerate(log.itertuples(index=False)):
+        weather = getattr(row, "weather", "")
+        rows.append({
+            "Команда 1": row.team0_name,
+            "Счёт 1": int(row.score0),
+            "Счёт 2": int(row.score1),
+            "Команда 2": row.team1_name,
+            "Тур": tours[index],
+            "Готовность 1": _readiness(row, "squad0"),
+            "Готовность 2": _readiness(row, "squad1"),
+            "Погода": str(weather) if weather else "—",
+            "Серия пенальти": "да" if _went_to_penalties(row, mode) else "нет",
+        })
+    frame = pd.DataFrame(rows, columns=MATCH_COLUMNS)
+    frame["Тур"] = frame["Тур"].astype("Int64")
+    return frame
+
+
+def _readiness(row, field):
+    value = getattr(row, field, None)
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return "—"
+    return f"{float(value):.0f}%"
+
+
+def _went_to_penalties(row, mode):
+    if int(row.score0) != int(row.score1):
+        return False
+    if mode == "playoff":
+        return True
+    return getattr(row, "stage", None) == "second_stage"
+
+
+def _tour_numbers(log):
+    """Номер тура. В плей-офф и швейцарке он уже в протоколе.
+
+    Круговая часть номера тура не хранит: пары идут по кругам в том же порядке,
+    в каком их собрал календарь. Группы в комбинированном турнире не пересекаются,
+    поэтому номер восстанавливается внутри каждой группы.
+    """
+    tours = [pd.NA] * len(log)
+    missing = []
+    for index, row in enumerate(log.itertuples(index=False)):
         rnd = getattr(row, "round", None)
         if rnd is not None and not (isinstance(rnd, float) and pd.isna(rnd)):
-            details.append("тур " + str(int(rnd)))
-        weather = getattr(row, "weather", "")
-        if show_weather and weather:
-            details.append(str(weather))
-        if show_squad:
-            details.append(f"состав {float(row.squad0):.0f}% / {float(row.squad1):.0f}%")
-        rows.append({"Матч": line, "Условия": ", ".join(details)})
-    return pd.DataFrame(rows)
+            tours[index] = int(rnd)
+        else:
+            missing.append(index)
+    if not missing:
+        return tours
+
+    parent = {}
+
+    def find(team):
+        parent.setdefault(team, team)
+        while parent[team] != team:
+            parent[team] = parent[parent[team]]
+            team = parent[team]
+        return team
+
+    def unite(left, right):
+        left, right = find(left), find(right)
+        if left != right:
+            parent[right] = left
+
+    ids = list(zip(log["id0"].tolist(), log["id1"].tolist()))
+    for index in missing:
+        unite(int(ids[index][0]), int(ids[index][1]))
+    groups = {}
+    for index in missing:
+        groups.setdefault(find(int(ids[index][0])), []).append(index)
+    for indexes in groups.values():
+        teams = set()
+        for index in indexes:
+            teams.add(int(ids[index][0]))
+            teams.add(int(ids[index][1]))
+        per_round = max(len(teams) // 2, 1)
+        for order, index in enumerate(indexes):
+            tours[index] = order // per_round + 1
+    return tours
 
 
 def standings_frame(result):
