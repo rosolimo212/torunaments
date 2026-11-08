@@ -73,7 +73,7 @@ HELP = {
 
 def main():
     config = load_config()
-    st.set_page_config(page_title=config["app"]["title"], layout="wide")
+    st.set_page_config(page_title=config["app"]["title"], page_icon="⚽", layout="wide")
     st.title(config["app"]["title"])
     catalog = catalog_from_config(config)
     tab_match, tab_series, tab_one, tab_many = st.tabs([
