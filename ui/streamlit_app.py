@@ -90,6 +90,8 @@ def main():
         render_tournament_tab(config, catalog, multi=False)
     with tab_many:
         render_tournament_tab(config, catalog, multi=True)
+    st.divider()
+    st.caption("created by [kotelok](https://t.me/kotelok_longread)")
 
 
 def render_match_tab(config, catalog, multi):
